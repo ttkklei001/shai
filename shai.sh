@@ -9,10 +9,11 @@ show_menu() {
     echo "1) 安装并启动 Shaicoin 节点"
     echo "2) 创建钱包"
     echo "3) 启动挖矿节点 (使用指定线程，自动关闭临时节点)"
-    echo "4) 查询当前收益"
-    echo "5) 查看当前地址及节点信息"
-    echo "6) 查看节点日志"
-    echo "7) 卸载 Shaicoin (不删除依赖)"
+    echo "4) 启动临时节点"  # 新选项
+    echo "5) 查询当前收益"
+    echo "6) 查看当前地址及节点信息"
+    echo "7) 查看节点日志"
+    echo "8) 卸载 Shaicoin (不删除依赖)"
     echo "0) 退出"
     read -rp "输入数字选择操作: " choice
 }
@@ -69,13 +70,16 @@ start_mining() {
     read -rp "输入希望使用的线程数进行挖矿: " cpu_threads
     read -rp "输入钱包地址以启动挖矿: " mining_address
     echo "启动挖矿节点..."
-    ./src/shaicoind -addnode=51.161.117.199:42069 -addnode=139.60.161.14:42069 -addnode=149.50.101.189:21026 -addnode=3.21.125.80:42069 &
-
-    sleep 5
-    echo "使用 $cpu_threads 个线程进行挖矿到钱包地址 $mining_address..."
     ./src/shaicoin-cli generatetoaddress "$cpu_threads" "$mining_address"
 
     echo "挖矿节点启动成功。"
+    read -rp "按回车返回主菜单..."
+}
+
+start_temp_node() {
+    echo "启动临时节点..."
+    ./src/shaicoind -addnode=51.161.117.199:42069 -addnode=139.60.161.14:42069 &
+    echo "临时节点已成功启动。"
     read -rp "按回车返回主菜单..."
 }
 
@@ -171,15 +175,18 @@ while true; do
             start_mining
             ;;
         4)
-            query_rewards
+            start_temp_node  # 新功能调用
             ;;
         5)
-            view_current_address_and_node_info
+            query_rewards
             ;;
         6)
-            view_logs
+            view_current_address_and_node_info
             ;;
         7)
+            view_logs
+            ;;
+        8)
             uninstall_shaicoin
             ;;
         0)
