@@ -11,9 +11,8 @@ show_menu() {
     echo "3) 启动挖矿节点"
     echo "4) 启动临时节点"
     echo "5) 查询当前收益"
-    echo "6) 查看当前地址及节点信息"
-    echo "7) 查看节点日志"
-    echo "8) 卸载 Shaicoin (不删除依赖)"
+    echo "6) 查看节点日志"
+    echo "7) 卸载 Shaicoin (不删除依赖)"
     echo "0) 退出"
     read -rp "输入数字选择操作: " choice
 }
@@ -50,6 +49,12 @@ create_wallet() {
     fi
 
     read -rp "输入钱包名称: " wallet_name
+    if [ -d "~/.shaicoin/wallets/$wallet_name" ]; then
+        echo "钱包 \"$wallet_name\" 已经存在，请使用其他名称。"
+        read -rp "按回车返回主菜单..."
+        return
+    fi
+
     echo "创建钱包..."
     ./src/shaicoin-cli createwallet "$wallet_name"
     echo "加载钱包..."
@@ -63,7 +68,9 @@ create_wallet() {
 load_wallet() {
     cd ~/shaicoin || exit
     read -rp "输入要加载的钱包名称: " wallet_name
-    ./src/shaicoin-cli loadwallet "$wallet_name"
+    if ! ./src/shaicoin-cli loadwallet "$wallet_name"; then
+        echo "钱包 \"$wallet_name\" 已经加载。"
+    fi
 }
 
 start_mining() {
@@ -104,31 +111,6 @@ query_rewards() {
 
     echo "查询当前收益..."
     ./src/shaicoin-cli getwalletinfo
-    read -rp "按回车返回主菜单..."
-}
-
-view_current_address_and_node_info() {
-    cd ~/shaicoin || exit
-    load_wallet
-
-    echo "查看当前地址及节点信息..."
-    CURRENT_WALLET=$(ls ~/.shaicoin/wallets | head -n 1)
-    if [[ -z $CURRENT_WALLET ]]; then
-        echo "没有找到已加载的钱包。"
-        read -rp "按回车返回主菜单..."
-        return
-    fi
-
-    ./src/shaicoin-cli loadwallet "$CURRENT_WALLET"
-    CURRENT_ADDRESS=$(./src/shaicoin-cli getnewaddress)
-    echo "当前地址: $CURRENT_ADDRESS"
-
-    echo "当前区块链信息:"
-    ./src/shaicoin-cli getblockchaininfo
-
-    echo "当前挖矿信息:"
-    ./src/shaicoin-cli getmininginfo
-
     read -rp "按回车返回主菜单..."
 }
 
@@ -191,12 +173,9 @@ while true; do
             query_rewards
             ;;
         6)
-            view_current_address_and_node_info
-            ;;
-        7)
             view_logs
             ;;
-        8)
+        7)
             uninstall_shaicoin
             ;;
         0)
