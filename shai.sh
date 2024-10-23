@@ -73,7 +73,11 @@ start_mining() {
     WALLET_ADDRESS=$(./src/shaicoin-cli getnewaddress)
 
     echo "启动挖矿节点..."
-    ./src/shaicoind -mine -moneyplz=$WALLET_ADDRESS -addnode=51.161.117.199:42069 -addnode=139.60.161.14:42069 -addnode=149.50.101.189:21026 -addnode=3.21.125.80:42069 &
+    ./src/shaicoind -addnode=51.161.117.199:42069 -addnode=139.60.161.14:42069 -addnode=149.50.101.189:21026 -addnode=3.21.125.80:42069 &
+    
+    # 使用 RPC 命令启动挖矿
+    sleep 5  # 确保节点已经启动
+    ./src/shaicoin-cli setgenerate true 1  # 启动挖矿，1表示使用1个线程
 
     echo "挖矿节点启动成功。"
     read -rp "按回车返回主菜单..."
