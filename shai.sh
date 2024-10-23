@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# 设置工作目录
+WORK_DIR=~/shaicoin  # 更改为你的实际路径
+
 # 功能选择菜单函数
 show_menu() {
     clear
@@ -8,8 +11,8 @@ show_menu() {
     echo "请选择你要执行的操作:"
     echo "1) 安装并启动 Shaicoin 节点"
     echo "2) 创建钱包"
-    echo "3) 启动挖矿节点 (使用指定线程，自动关闭临时节点)"
-    echo "4) 启动临时节点"  # 新选项
+    echo "3) 启动挖矿节点"
+    echo "4) 启动临时节点"
     echo "5) 查询当前收益"
     echo "6) 查看当前地址及节点信息"
     echo "7) 查看节点日志"
@@ -17,6 +20,9 @@ show_menu() {
     echo "0) 退出"
     read -rp "输入数字选择操作: " choice
 }
+
+# 切换到工作目录
+cd "$WORK_DIR" || { echo "无法进入目录 $WORK_DIR"; exit 1; }
 
 install_and_start_node() {
     echo "安装依赖..."
@@ -48,11 +54,18 @@ create_wallet() {
     fi
 
     read -rp "输入钱包名称: " wallet_name
-    echo "创建钱包..."
-    ./src/shaicoin-cli createwallet "$wallet_name"
-    ./src/shaicoin-cli loadwallet "$wallet_name"
-    WALLET_ADDRESS=$(./src/shaicoin-cli getnewaddress)
 
+    # 检查钱包是否已存在
+    if [[ -f ~/.shaicoin/wallets/$wallet_name ]]; then
+        echo "钱包 \"$wallet_name\" 已经存在，正在加载..."
+        ./src/shaicoin-cli loadwallet "$wallet_name"
+    else
+        echo "创建钱包..."
+        ./src/shaicoin-cli createwallet "$wallet_name"
+        ./src/shaicoin-cli loadwallet "$wallet_name"
+    fi
+
+    WALLET_ADDRESS=$(./src/shaicoin-cli getnewaddress)
     echo "你的钱包地址是: $WALLET_ADDRESS"
     read -rp "按回车返回主菜单..."
 }
@@ -67,10 +80,11 @@ start_mining() {
         echo "没有找到正在运行的临时节点。"
     fi
 
-    read -rp "输入希望使用的线程数进行挖矿: " cpu_threads
     read -rp "输入钱包地址以启动挖矿: " mining_address
     echo "启动挖矿节点..."
-    ./src/shaicoin-cli generatetoaddress "$cpu_threads" "$mining_address"
+
+    # 启动挖矿节点
+    ./src/shaicoind -addnode=51.161.117.199:42869 -addnode=139.60.161.14:42069 -addnode=149.50.101.189:21026 -addnode=3.21.125.80:42069 -moneyplz="$mining_address" &
 
     echo "挖矿节点启动成功。"
     read -rp "按回车返回主菜单..."
@@ -175,7 +189,7 @@ while true; do
             start_mining
             ;;
         4)
-            start_temp_node  # 新功能调用
+            start_temp_node
             ;;
         5)
             query_rewards
