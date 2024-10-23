@@ -72,6 +72,9 @@ function create_wallet() {
 
 # 开始挖矿
 function start_mining() {
+    echo "正在关闭之前的临时节点..."
+    pkill -f shaicoind  # 停止当前的节点进程
+    
     echo "请输入钱包地址以开始挖矿: "
     read wallet_address
     echo "正在启动挖矿..."
