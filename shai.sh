@@ -8,10 +8,11 @@ show_menu() {
     echo "请选择你要执行的操作:"
     echo "1) 安装并启动 Shaicoin 节点"
     echo "2) 创建钱包"
-    echo "3) 启动挖矿节点 (使用最大线程，自动关闭临时节点)"
+    echo "3) 启动挖矿节点 (使用指定线程，自动关闭临时节点)"
     echo "4) 查询当前收益"
     echo "5) 查看当前地址及节点信息"
-    echo "6) 卸载 Shaicoin (不删除依赖)"
+    echo "6) 查看节点日志"
+    echo "7) 卸载 Shaicoin (不删除依赖)"
     echo "0) 退出"
     read -rp "输入数字选择操作: " choice
 }
@@ -56,8 +57,6 @@ create_wallet() {
 }
 
 start_mining() {
-    CPU_THREADS=$(nproc)
-
     TEMP_PID=$(pgrep -f 'shaicoind.*51.161.117.199')
     if [[ -n $TEMP_PID ]]; then
         echo "关闭正在运行的临时节点..."
@@ -67,13 +66,14 @@ start_mining() {
         echo "没有找到正在运行的临时节点。"
     fi
 
+    read -rp "输入希望使用的线程数进行挖矿: " cpu_threads
     read -rp "输入钱包地址以启动挖矿: " mining_address
     echo "启动挖矿节点..."
     ./src/shaicoind -addnode=51.161.117.199:42069 -addnode=139.60.161.14:42069 -addnode=149.50.101.189:21026 -addnode=3.21.125.80:42069 &
 
     sleep 5
-    echo "使用 $CPU_THREADS 个线程进行挖矿到钱包地址 $mining_address..."
-    ./src/shaicoin-cli generatetoaddress "$CPU_THREADS" "$mining_address"
+    echo "使用 $cpu_threads 个线程进行挖矿到钱包地址 $mining_address..."
+    ./src/shaicoin-cli generatetoaddress "$cpu_threads" "$mining_address"
 
     echo "挖矿节点启动成功。"
     read -rp "按回车返回主菜单..."
@@ -99,7 +99,16 @@ view_current_address_and_node_info() {
     fi
 
     echo "查看当前地址及节点信息..."
-    CURRENT_ADDRESS=$(./src/shaicoin-cli getaddressinfo $(./src/shaicoin-cli getnewaddress))
+
+    CURRENT_WALLET=$(ls ~/.shaicoin/wallets | head -n 1)
+    if [[ -z $CURRENT_WALLET ]]; then
+        echo "没有找到已加载的钱包。"
+        read -rp "按回车返回主菜单..."
+        return
+    fi
+
+    ./src/shaicoin-cli loadwallet "$CURRENT_WALLET"
+    CURRENT_ADDRESS=$(./src/shaicoin-cli getnewaddress)
     echo "当前地址: $CURRENT_ADDRESS"
 
     echo "当前区块链信息:"
@@ -111,15 +120,26 @@ view_current_address_and_node_info() {
     read -rp "按回车返回主菜单..."
 }
 
+view_logs() {
+    echo "查看节点日志 (最后 50 行)..."
+    LOG_FILE=~/.shaicoin/debug.log
+    if [[ -f $LOG_FILE ]]; then
+        tail -n 50 "$LOG_FILE"
+    else
+        echo "没有找到日志文件."
+    fi
+    read -rp "按回车返回主菜单..."
+}
+
 uninstall_shaicoin() {
-    echo "卸载 Shaicoin 并清除相关文件 (不删除依赖)..."
-    
-    read -rp "你确定要卸载 Shaicoin 吗？输入 Y 确认: " confirm
-    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
-        echo "取消卸载操作。"
+    read -rp "警告: 卸载将删除所有相关文件，输入Y确认卸载: " confirm
+    if [[ $confirm != "Y" ]]; then
+        echo "取消卸载。"
         read -rp "按回车返回主菜单..."
         return
     fi
+
+    echo "卸载 Shaicoin 并清除相关文件 (不删除依赖)..."
 
     SHAICOIN_PID=$(pgrep shaicoind)
     if [[ -n $SHAICOIN_PID ]]; then
@@ -157,6 +177,9 @@ while true; do
             view_current_address_and_node_info
             ;;
         6)
+            view_logs
+            ;;
+        7)
             uninstall_shaicoin
             ;;
         0)
