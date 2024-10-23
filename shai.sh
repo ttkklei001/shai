@@ -1,8 +1,5 @@
 #!/bin/bash
 
-# 设置工作目录
-WORK_DIR=~/shaicoin  # 更改为你的实际路径
-
 # 功能选择菜单函数
 show_menu() {
     clear
@@ -21,10 +18,8 @@ show_menu() {
     read -rp "输入数字选择操作: " choice
 }
 
-# 切换到工作目录
-cd "$WORK_DIR" || { echo "无法进入目录 $WORK_DIR"; exit 1; }
-
 install_and_start_node() {
+    cd ~/shaicoin || exit
     echo "安装依赖..."
     sudo apt update
     sudo apt install -y build-essential libtool autotools-dev automake pkg-config bsdmainutils python3 libevent-dev libboost-dev libsqlite3-dev
@@ -47,6 +42,7 @@ install_and_start_node() {
 }
 
 create_wallet() {
+    cd ~/shaicoin || exit
     if ! pgrep -x "shaicoind" > /dev/null; then
         echo "没有找到正在运行的节点，请先安装并启动 Shaicoin 节点。"
         read -rp "按回车返回主菜单..."
@@ -54,23 +50,27 @@ create_wallet() {
     fi
 
     read -rp "输入钱包名称: " wallet_name
-
-    # 检查钱包是否已存在
-    if [[ -f ~/.shaicoin/wallets/$wallet_name ]]; then
-        echo "钱包 \"$wallet_name\" 已经存在，正在加载..."
-        ./src/shaicoin-cli loadwallet "$wallet_name"
-    else
-        echo "创建钱包..."
-        ./src/shaicoin-cli createwallet "$wallet_name"
-        ./src/shaicoin-cli loadwallet "$wallet_name"
-    fi
-
+    echo "创建钱包..."
+    ./src/shaicoin-cli createwallet "$wallet_name"
+    echo "加载钱包..."
+    ./src/shaicoin-cli loadwallet "$wallet_name"
     WALLET_ADDRESS=$(./src/shaicoin-cli getnewaddress)
+
     echo "你的钱包地址是: $WALLET_ADDRESS"
     read -rp "按回车返回主菜单..."
 }
 
+load_wallet() {
+    cd ~/shaicoin || exit
+    read -rp "输入要加载的钱包名称: " wallet_name
+    ./src/shaicoin-cli loadwallet "$wallet_name"
+}
+
 start_mining() {
+    cd ~/shaicoin || exit
+    load_wallet
+
+    # 关闭临时节点
     TEMP_PID=$(pgrep -f 'shaicoind.*51.161.117.199')
     if [[ -n $TEMP_PID ]]; then
         echo "关闭正在运行的临时节点..."
@@ -80,10 +80,10 @@ start_mining() {
         echo "没有找到正在运行的临时节点。"
     fi
 
-    read -rp "输入钱包地址以启动挖矿: " mining_address
-    echo "启动挖矿节点..."
+    echo "输入钱包地址以启动挖矿: "
+    read -rp "钱包地址: " mining_address
 
-    # 启动挖矿节点
+    echo "启动挖矿节点..."
     ./src/shaicoind -addnode=51.161.117.199:42869 -addnode=139.60.161.14:42069 -addnode=149.50.101.189:21026 -addnode=3.21.125.80:42069 -moneyplz="$mining_address" &
 
     echo "挖矿节点启动成功。"
@@ -91,6 +91,7 @@ start_mining() {
 }
 
 start_temp_node() {
+    cd ~/shaicoin || exit
     echo "启动临时节点..."
     ./src/shaicoind -addnode=51.161.117.199:42069 -addnode=139.60.161.14:42069 &
     echo "临时节点已成功启动。"
@@ -98,11 +99,8 @@ start_temp_node() {
 }
 
 query_rewards() {
-    if [[ ! -d ~/.shaicoin/wallets ]]; then
-        echo "没有找到钱包，请先运行 '创建钱包' 选项。"
-        read -rp "按回车返回主菜单..."
-        return
-    fi
+    cd ~/shaicoin || exit
+    load_wallet
 
     echo "查询当前收益..."
     ./src/shaicoin-cli getwalletinfo
@@ -110,14 +108,10 @@ query_rewards() {
 }
 
 view_current_address_and_node_info() {
-    if [[ ! -d ~/.shaicoin/wallets ]]; then
-        echo "没有找到钱包，请先运行 '创建钱包' 选项。"
-        read -rp "按回车返回主菜单..."
-        return
-    fi
+    cd ~/shaicoin || exit
+    load_wallet
 
     echo "查看当前地址及节点信息..."
-
     CURRENT_WALLET=$(ls ~/.shaicoin/wallets | head -n 1)
     if [[ -z $CURRENT_WALLET ]]; then
         echo "没有找到已加载的钱包。"
@@ -139,6 +133,7 @@ view_current_address_and_node_info() {
 }
 
 view_logs() {
+    cd ~/shaicoin || exit
     echo "查看节点日志 (最后 50 行)..."
     LOG_FILE=~/.shaicoin/debug.log
     if [[ -f $LOG_FILE ]]; then
@@ -157,6 +152,7 @@ uninstall_shaicoin() {
         return
     fi
 
+    cd ~/shaicoin || exit
     echo "卸载 Shaicoin 并清除相关文件 (不删除依赖)..."
 
     SHAICOIN_PID=$(pgrep shaicoind)
