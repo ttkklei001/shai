@@ -1,168 +1,131 @@
 #!/bin/bash
 
-LOG_FILE="$HOME/.shaicoin/shaicoin.log"  # 定义日志文件路径
-INSTALL_DIR="$HOME/shaicoin"              # 定义安装目录
-BACKUP_DIR="$HOME/shaicoin_backup"        # 定义备份目录
-
-# 打印菜单选项
-function show_menu() {
-    echo "================================="
-    echo " Shaicoin 一键安装和管理脚本"
-    echo "================================="
-    echo "请选择一个选项:"
-    echo "1) 安装并启动节点"
+# 功能选择菜单函数
+show_menu() {
+    clear
+    echo "请选择你要执行的操作:"
+    echo "1) 安装并启动 Shaicoin 节点"
     echo "2) 创建钱包"
-    echo "3) 开始挖矿"
-    echo "4) 查询钱包信息"
-    echo "5) 查询收益"
-    echo "6) 查看节点日志"
-    echo "7) 备份重要文件"
-    echo "8) 卸载节点（保留依赖）"
-    echo "9) 退出"
-    echo "================================="
+    echo "3) 启动挖矿节点 (会关闭临时节点)"
+    echo "4) 查询当前收益"
+    echo "5) 查看节点日志"
+    echo "6) 卸载 Shaicoin (不删除依赖)"
+    echo "0) 退出"
+    read -rp "输入数字选择操作: " choice
 }
 
-# 等待用户按回车继续
-function pause() {
-    read -p "按回车键返回菜单..."
-}
-
-# 安装并启动节点
-function install_and_start_node() {
-    echo "开始安装依赖、编译源代码并启动节点..."
-
-    # 1. 安装依赖
-    echo "正在安装依赖..."
+install_and_start_node() {
+    echo "安装依赖..."
     sudo apt update
-    sudo apt install -y build-essential libtool autotools-dev automake pkg-config bsdmainutils python3 libevent-dev libboost-dev libsqlite3-dev || { echo "依赖安装失败"; exit 1; }
-    echo "依赖安装完成。"
+    sudo apt install -y build-essential libtool autotools-dev automake pkg-config bsdmainutils python3 libevent-dev libboost-dev libsqlite3-dev
 
-    # 2. 拉取并编译 Shaicoin 源代码
-    echo "正在拉取并编译 Shaicoin 源代码..."
-    git clone https://github.com/shaicoin/shaicoin.git "$INSTALL_DIR"
-    cd "$INSTALL_DIR" || { echo "无法进入安装目录"; exit 1; }
+    echo "克隆并编译 Shaicoin 代码..."
+    git clone https://github.com/shaicoin/shaicoin.git
+    cd shaicoin || exit
     ./autogen.sh
     ./configure
-    make -j$(nproc) || { echo "代码编译失败"; exit 1; }
-    echo "代码编译完成。"
+    make -j8
 
-    # 3. 确保日志目录存在
-    echo "确保日志目录存在..."
-    mkdir -p "$HOME/.shaicoin"
-
-    # 4. 启动节点并手动添加引导节点
-    echo "正在启动节点..."
-    ./src/shaicoind -addnode=51.161.117.199:42069 -addnode=139.60.161.14:42069 -addnode=149.50.101.189:21026 -addnode=3.21.125.80:42069 > "$LOG_FILE" 2>&1 &
-    echo "节点启动完成，日志已记录到 $LOG_FILE 。"
-
-    pause
-}
-
-# 创建钱包
-function create_wallet() {
-    echo "请输入钱包名称: "
-    read wallet_name
-    ./src/shaicoin-cli createwallet "$wallet_name"
-    ./src/shaicoin-cli loadwallet "$wallet_name"
-    wallet_address=$(./src/shaicoin-cli getnewaddress)
-    echo "新钱包地址为: $wallet_address"
-
-    pause
-}
-
-# 开始挖矿
-function start_mining() {
-    echo "正在关闭之前的临时节点..."
-    pkill -f shaicoind  # 停止当前的节点进程
+    echo "启动节点..."
+    ./src/shaicoind -addnode=51.161.117.199:42069 -addnode=139.60.161.14:42069 -addnode=149.50.101.189:21026 -addnode=3.21.125.80:42069 &
     
-    echo "请输入钱包地址以开始挖矿: "
-    read wallet_address
-    echo "正在启动挖矿..."
-    ./src/shaicoind -moneyplyz="$wallet_address" -addnode=51.161.117.199:42069 -addnode=139.60.161.14:42069 -addnode=149.50.101.189:21026 -addnode=3.21.125.80:42069 > "$LOG_FILE" 2>&1 &
-    echo "挖矿已开始，日志已记录到 $LOG_FILE 。"
-
-    pause
+    echo "临时启动节点..."
+    ./src/shaicoind -addnode=51.161.117.199:42069 -addnode=139.60.161.14:42069 &
+    
+    echo "Shaicoin 节点已成功启动。"
+    read -rp "按回车返回主菜单..."  
 }
 
-# 查询钱包信息
-function check_wallet_info() {
-    echo "正在查询钱包信息..."
+create_wallet() {
+    if ! pgrep -x "shaicoind" > /dev/null; then
+        echo "没有找到正在运行的节点，请先安装并启动 Shaicoin 节点。"
+        read -rp "按回车返回主菜单..."
+        return
+    fi
+
+    echo "创建钱包..."
+    ./src/shaicoin-cli createwallet "my_wallet"
+    ./src/shaicoin-cli loadwallet "my_wallet"
+    WALLET_ADDRESS=$(./src/shaicoin-cli getnewaddress)
+
+    echo "你的钱包地址是: $WALLET_ADDRESS"
+    read -rp "按回车返回主菜单..."
+}
+
+start_mining() {
+    # 首先关闭临时节点
+    TEMP_PID=$(pgrep shaicoind)
+    if [[ -n $TEMP_PID ]]; then
+        echo "关闭正在运行的临时节点..."
+        kill $TEMP_PID
+        sleep 5
+    else
+        echo "没有找到正在运行的临时节点。"
+    fi
+
+    if [[ ! -d ~/.shaicoin/wallets ]]; then
+        echo "没有找到钱包，请先运行 '创建钱包' 选项。"
+        read -rp "按回车返回主菜单..."
+        return
+    fi
+
+    # 获取钱包地址
+    WALLET_ADDRESS=$(./src/shaicoin-cli getnewaddress)
+
+    echo "启动挖矿节点..."
+    ./src/shaicoind -mine -moneyplz=$WALLET_ADDRESS -addnode=51.161.117.199:42069 -addnode=139.60.161.14:42069 -addnode=149.50.101.189:21026 -addnode=3.21.125.80:42069 &
+
+    echo "挖矿节点启动成功。"
+    read -rp "按回车返回主菜单..."
+}
+
+query_rewards() {
+    if [[ ! -d ~/.shaicoin/wallets ]]; then
+        echo "没有找到钱包，请先运行 '创建钱包' 选项。"
+        read -rp "按回车返回主菜单..."
+        return
+    fi
+
+    echo "查询当前收益..."
     ./src/shaicoin-cli getwalletinfo
-
-    pause
+    read -rp "按回车返回主菜单..."
 }
 
-# 查询收益
-function check_mining_rewards() {
-    echo "正在查询挖矿收益..."
-    ./src/shaicoin-cli getwalletinfo | grep "balance"
-    pause
-}
+view_logs() {
+    LOG_FILE=~/.shaicoin/debug.log
 
-# 查看节点日志
-function view_logs() {
-    if [ -f "$LOG_FILE" ]; then
-        echo "正在显示节点日志: "
-        cat "$LOG_FILE"
+    if [[ -f $LOG_FILE ]]; then
+        echo "显示最新日志记录:"
+        tail -n 50 "$LOG_FILE"
     else
-        echo "日志文件不存在或节点尚未启动。"
+        echo "日志文件不存在。"
     fi
 
-    pause
+    read -rp "按回车返回主菜单..."
 }
 
-# 备份重要文件
-function backup_important_files() {
-    echo "正在备份重要文件..."
-    
-    # 创建备份目录（如果不存在）
-    mkdir -p "$BACKUP_DIR"
-    
-    # 备份钱包数据
-    cp -r "$HOME/.shaicoin" "$BACKUP_DIR"
-    
-    # 确认备份成功
-    if [ $? -eq 0 ]; then
-        echo "备份完成。备份文件位于 $BACKUP_DIR"
+uninstall_shaicoin() {
+    echo "卸载 Shaicoin 并清除相关文件 (不删除依赖)..."
+
+    SHAICOIN_PID=$(pgrep shaicoind)
+    if [[ -n $SHAICOIN_PID ]]; then
+        echo "关闭正在运行的 Shaicoin 节点..."
+        kill $SHAICOIN_PID
+        sleep 5
     else
-        echo "备份失败。"
+        echo "没有找到正在运行的 Shaicoin 节点。"
     fi
 
-    pause
+    echo "删除 Shaicoin 相关文件..."
+    rm -rf ~/shaicoin
+    rm -rf ~/.shaicoin
+
+    echo "Shaicoin 已成功卸载，相关文件已清除 (不删除依赖)。"
+    read -rp "按回车返回主菜单..."
 }
 
-# 卸载节点
-function uninstall_node() {
-    echo "正在卸载节点..."
-    
-    # 停止节点进程
-    pkill -f shaicoind
-    echo "节点已停止。"
-
-    # 删除编译目录
-    if [ -d "$INSTALL_DIR" ]; then
-        rm -rf "$INSTALL_DIR"
-        echo "节点文件已删除。"
-    else
-        echo "未找到安装目录。"
-    fi
-
-    # 删除日志文件
-    if [ -f "$LOG_FILE" ]; then
-        rm "$LOG_FILE"
-        echo "日志文件已删除。"
-    else
-        echo "未找到日志文件。"
-    fi
-
-    echo "节点卸载完成，依赖保留。"
-    pause
-}
-
-# 主程序循环
 while true; do
     show_menu
-    read -p "请选择操作: " choice
     case $choice in
         1)
             install_and_start_node
@@ -171,29 +134,23 @@ while true; do
             create_wallet
             ;;
         3)
-            start_mining
+            start_mining  # 新增启动挖矿节点功能，同时关闭临时节点
             ;;
         4)
-            check_wallet_info
+            query_rewards
             ;;
         5)
-            check_mining_rewards
+            view_logs  # 查看日志功能
             ;;
         6)
-            view_logs
+            uninstall_shaicoin
             ;;
-        7)
-            backup_important_files
-            ;;
-        8)
-            uninstall_node
-            ;;
-        9)
+        0)
             echo "退出脚本。"
             exit 0
             ;;
         *)
-            echo "无效选项，请重新选择。"
+            echo "无效的选择，请重新运行脚本并选择有效选项。"
             ;;
     esac
 done
