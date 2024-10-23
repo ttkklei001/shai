@@ -18,23 +18,22 @@ show_menu() {
 }
 
 install_and_start_node() {
-    cd ~/shaicoin || exit
     echo "安装依赖..."
     sudo apt update
     sudo apt install -y build-essential libtool autotools-dev automake pkg-config bsdmainutils python3 libevent-dev libboost-dev libsqlite3-dev
 
     echo "克隆并编译 Shaicoin 代码..."
-    git clone https://github.com/shaicoin/shaicoin.git
-    cd shaicoin || exit
+    git clone https://github.com/shaicoin/shaicoin.git ~/shaicoin
+    cd ~/shaicoin || exit
     ./autogen.sh
     ./configure
     make -j8
 
     echo "启动节点..."
-    ./src/shaicoind -addnode=51.161.117.199:42069 -addnode=139.60.161.14:42069 -addnode=149.50.101.189:21026 -addnode=3.21.125.80:42069 &
+    ~/shaicoin/src/shaicoind -addnode=51.161.117.199:42069 -addnode=139.60.161.14:42069 -addnode=149.50.101.189:21026 -addnode=3.21.125.80:42069 &
 
     echo "临时启动节点..."
-    ./src/shaicoind -addnode=51.161.117.199:42069 -addnode=139.60.161.14:42069 &
+    ~/shaicoin/src/shaicoind -addnode=51.161.117.199:42069 -addnode=139.60.161.14:42069 &
 
     echo "Shaicoin 节点已成功启动。"
     read -rp "按回车返回主菜单..."
@@ -91,16 +90,15 @@ start_mining() {
     read -rp "钱包地址: " mining_address
 
     echo "启动挖矿节点..."
-    ./src/shaicoind -addnode=51.161.117.199:42869 -addnode=139.60.161.14:42069 -addnode=149.50.101.189:21026 -addnode=3.21.125.80:42069 -moneyplz="$mining_address" &
+    ~/shaicoin/src/shaicoind -addnode=51.161.117.199:42869 -addnode=139.60.161.14:42069 -addnode=149.50.101.189:21026 -addnode=3.21.125.80:42069 -moneyplz="$mining_address" &
 
     echo "挖矿节点启动成功。"
     read -rp "按回车返回主菜单..."
 }
 
 start_temp_node() {
-    cd ~/shaicoin || exit
     echo "启动临时节点..."
-    ./src/shaicoind -addnode=51.161.117.199:42069 -addnode=139.60.161.14:42069 &
+    ~/shaicoin/src/shaicoind -addnode=51.161.117.199:42069 -addnode=139.60.161.14:42069 &
     echo "临时节点已成功启动。"
     read -rp "按回车返回主菜单..."
 }
@@ -134,7 +132,6 @@ uninstall_shaicoin() {
         return
     fi
 
-    cd ~/shaicoin || exit
     echo "卸载 Shaicoin 并清除相关文件 (不删除依赖)..."
 
     SHAICOIN_PID=$(pgrep shaicoind)
