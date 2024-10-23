@@ -3,12 +3,14 @@
 # 功能选择菜单函数
 show_menu() {
     clear
+    echo "==== Shaicoin 一键管理脚本 ===="
+    echo "脚本作者推特: https://x.com/BtcK241918"
     echo "请选择你要执行的操作:"
     echo "1) 安装并启动 Shaicoin 节点"
     echo "2) 创建钱包"
-    echo "3) 启动挖矿节点 (会关闭临时节点)"
+    echo "3) 启动挖矿节点 (使用最大线程，自动关闭临时节点)"
     echo "4) 查询当前收益"
-    echo "5) 查看节点日志"
+    echo "5) 查看当前地址及节点信息"
     echo "6) 卸载 Shaicoin (不删除依赖)"
     echo "0) 退出"
     read -rp "输入数字选择操作: " choice
@@ -28,12 +30,12 @@ install_and_start_node() {
 
     echo "启动节点..."
     ./src/shaicoind -addnode=51.161.117.199:42069 -addnode=139.60.161.14:42069 -addnode=149.50.101.189:21026 -addnode=3.21.125.80:42069 &
-    
+
     echo "临时启动节点..."
     ./src/shaicoind -addnode=51.161.117.199:42069 -addnode=139.60.161.14:42069 &
-    
+
     echo "Shaicoin 节点已成功启动。"
-    read -rp "按回车返回主菜单..."  
+    read -rp "按回车返回主菜单..."
 }
 
 create_wallet() {
@@ -43,9 +45,10 @@ create_wallet() {
         return
     fi
 
+    read -rp "输入钱包名称: " wallet_name
     echo "创建钱包..."
-    ./src/shaicoin-cli createwallet "my_wallet"
-    ./src/shaicoin-cli loadwallet "my_wallet"
+    ./src/shaicoin-cli createwallet "$wallet_name"
+    ./src/shaicoin-cli loadwallet "$wallet_name"
     WALLET_ADDRESS=$(./src/shaicoin-cli getnewaddress)
 
     echo "你的钱包地址是: $WALLET_ADDRESS"
@@ -53,8 +56,9 @@ create_wallet() {
 }
 
 start_mining() {
-    # 首先关闭临时节点
-    TEMP_PID=$(pgrep shaicoind)
+    CPU_THREADS=$(nproc)
+
+    TEMP_PID=$(pgrep -f 'shaicoind.*51.161.117.199')
     if [[ -n $TEMP_PID ]]; then
         echo "关闭正在运行的临时节点..."
         kill $TEMP_PID
@@ -63,21 +67,13 @@ start_mining() {
         echo "没有找到正在运行的临时节点。"
     fi
 
-    if [[ ! -d ~/.shaicoin/wallets ]]; then
-        echo "没有找到钱包，请先运行 '创建钱包' 选项。"
-        read -rp "按回车返回主菜单..."
-        return
-    fi
-
-    # 获取钱包地址
-    WALLET_ADDRESS=$(./src/shaicoin-cli getnewaddress)
-
+    read -rp "输入钱包地址以启动挖矿: " mining_address
     echo "启动挖矿节点..."
     ./src/shaicoind -addnode=51.161.117.199:42069 -addnode=139.60.161.14:42069 -addnode=149.50.101.189:21026 -addnode=3.21.125.80:42069 &
-    
-    # 使用 RPC 命令启动挖矿
-    sleep 5  # 确保节点已经启动
-    ./src/shaicoin-cli setgenerate true 1  # 启动挖矿，1表示使用1个线程
+
+    sleep 5
+    echo "使用 $CPU_THREADS 个线程进行挖矿到钱包地址 $mining_address..."
+    ./src/shaicoin-cli generatetoaddress "$CPU_THREADS" "$mining_address"
 
     echo "挖矿节点启动成功。"
     read -rp "按回车返回主菜单..."
@@ -95,21 +91,35 @@ query_rewards() {
     read -rp "按回车返回主菜单..."
 }
 
-view_logs() {
-    LOG_FILE=~/.shaicoin/debug.log
-
-    if [[ -f $LOG_FILE ]]; then
-        echo "显示最新日志记录:"
-        tail -n 50 "$LOG_FILE"
-    else
-        echo "日志文件不存在。"
+view_current_address_and_node_info() {
+    if [[ ! -d ~/.shaicoin/wallets ]]; then
+        echo "没有找到钱包，请先运行 '创建钱包' 选项。"
+        read -rp "按回车返回主菜单..."
+        return
     fi
+
+    echo "查看当前地址及节点信息..."
+    CURRENT_ADDRESS=$(./src/shaicoin-cli getaddressinfo $(./src/shaicoin-cli getnewaddress))
+    echo "当前地址: $CURRENT_ADDRESS"
+
+    echo "当前区块链信息:"
+    ./src/shaicoin-cli getblockchaininfo
+
+    echo "当前挖矿信息:"
+    ./src/shaicoin-cli getmininginfo
 
     read -rp "按回车返回主菜单..."
 }
 
 uninstall_shaicoin() {
     echo "卸载 Shaicoin 并清除相关文件 (不删除依赖)..."
+    
+    read -rp "你确定要卸载 Shaicoin 吗？输入 Y 确认: " confirm
+    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+        echo "取消卸载操作。"
+        read -rp "按回车返回主菜单..."
+        return
+    fi
 
     SHAICOIN_PID=$(pgrep shaicoind)
     if [[ -n $SHAICOIN_PID ]]; then
@@ -138,13 +148,13 @@ while true; do
             create_wallet
             ;;
         3)
-            start_mining  # 新增启动挖矿节点功能，同时关闭临时节点
+            start_mining
             ;;
         4)
             query_rewards
             ;;
         5)
-            view_logs  # 查看日志功能
+            view_current_address_and_node_info
             ;;
         6)
             uninstall_shaicoin
