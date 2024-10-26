@@ -10,7 +10,7 @@ show_menu() {
     echo "2) 创建钱包"
     echo "3) 启动挖矿节点"
     echo "4) 启动临时节点"
-    echo "5) 查询当前收益"
+    echo "5) 查看余额"
     echo "6) 查看节点日志"
     echo "7) 卸载 Shaicoin (不删除依赖)"
     echo "0) 退出"
@@ -48,7 +48,7 @@ create_wallet() {
     fi
 
     read -rp "输入钱包名称: " wallet_name
-    if [ -d "~/.shaicoin/wallets/$wallet_name" ]; then
+    if [ -d "$HOME/.shaicoin/wallets/$wallet_name" ]; then
         echo "钱包 \"$wallet_name\" 已经存在，请使用其他名称。"
         read -rp "按回车返回主菜单..."
         return
@@ -64,28 +64,8 @@ create_wallet() {
     read -rp "按回车返回主菜单..."
 }
 
-load_wallet() {
-    cd ~/shaicoin || exit
-    read -rp "输入要加载的钱包名称: " wallet_name
-    if ! ./src/shaicoin-cli loadwallet "$wallet_name"; then
-        echo "钱包 \"$wallet_name\" 已经加载。"
-    fi
-}
-
 start_mining() {
     cd ~/shaicoin || exit
-    load_wallet
-
-    # 关闭临时节点
-    TEMP_PID=$(pgrep -f 'shaicoind.*51.161.117.199')
-    if [[ -n $TEMP_PID ]]; then
-        echo "关闭正在运行的临时节点..."
-        kill $TEMP_PID
-        sleep 5
-    else
-        echo "没有找到正在运行的临时节点。"
-    fi
-
     echo "输入钱包地址以启动挖矿: "
     read -rp "钱包地址: " mining_address
 
@@ -103,19 +83,22 @@ start_temp_node() {
     read -rp "按回车返回主菜单..."
 }
 
-query_rewards() {
+view_balance() {
     cd ~/shaicoin || exit
-    load_wallet
 
-    echo "查询当前收益..."
-    ./src/shaicoin-cli getwalletinfo
+    # 查询所有地址及其详细信息
+    ALL_ADDRESSES=$(./src/shaicoin-cli listaddressgroupings)
+
+    echo "所有钱包余额:"
+    echo "$ALL_ADDRESSES" | jq -c '.[] | .[] | {address: .[0], balance: .[1]}'
+
     read -rp "按回车返回主菜单..."
 }
 
 view_logs() {
     cd ~/shaicoin || exit
     echo "查看节点日志 (最后 50 行)..."
-    LOG_FILE=~/.shaicoin/debug.log
+    LOG_FILE="$HOME/.shaicoin/debug.log"
     if [[ -f $LOG_FILE ]]; then
         tail -n 50 "$LOG_FILE"
     else
@@ -167,7 +150,7 @@ while true; do
             start_temp_node
             ;;
         5)
-            query_rewards
+            view_balance
             ;;
         6)
             view_logs
