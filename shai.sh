@@ -20,7 +20,7 @@ show_menu() {
 install_and_start_node() {
     echo "安装依赖..."
     sudo apt update
-    sudo apt install -y build-essential libtool autotools-dev automake pkg-config bsdmainutils python3 libevent-dev libboost-dev libsqlite3-dev
+    sudo apt install -y build-essential libtool autotools-dev automake pkg-config bsdmainutils python3 libevent-dev libboost-dev libsqlite3-dev jq
 
     echo "克隆并编译 Shaicoin 代码..."
     git clone https://github.com/shaicoin/shaicoin.git ~/shaicoin
@@ -86,11 +86,25 @@ start_temp_node() {
 view_balance() {
     cd ~/shaicoin || exit
 
-    # 查询所有地址及其详细信息
-    ALL_ADDRESSES=$(./src/shaicoin-cli listaddressgroupings)
+    read -rp "输入要加载的钱包名称: " wallet_name
+    
+    # 检查钱包是否已经加载
+    LOADED_WALLETS=$(./src/shaicoin-cli listwallets)
 
-    echo "所有钱包余额:"
-    echo "$ALL_ADDRESSES" | jq -c '.[] | .[] | {address: .[0], balance: .[1]}'
+    if echo "$LOADED_WALLETS" | grep -q "$wallet_name"; then
+        echo "钱包 \"$wallet_name\" 已经加载."
+    else
+        echo "加载钱包..."
+        ./src/shaicoin-cli loadwallet "$wallet_name"
+    fi
+
+    echo "查看已加载的钱包..."
+    LOADED_WALLETS=$(./src/shaicoin-cli listwallets)
+    echo "已加载的钱包: $LOADED_WALLETS"
+
+    echo "查询余额..."
+    BALANCE=$(./src/shaicoin-cli getbalance)
+    echo "当前余额: $BALANCE"
 
     read -rp "按回车返回主菜单..."
 }
